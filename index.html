@@ -1,0 +1,518 @@
+<h1>AI Uncensored Story Generator</h1>
+<h1 style="margin-top:1rem; font-size:140%;">AI Story Generator: Explicit Content Edition</h1>
+  <h5>Things Changed: Improved variety of generated names, increased unpredictability, improved character development, added some priority to unique speaking styles</h5>
+  <p id="subtitleEl" style="font-size:85%; opacity:0.8; padding:0 0.5rem;">Helps you write a <i>long</i> story, paragraph-by-paragraph, based on your overview and instructions. If you have any questions, comments, or concerns, press the "show comments" button at the bottom of the page.</p>
+<script>
+  if(localStorage.generateCount && Number(localStorage.generateCount) > 5) {
+    subtitleEl.style.display = "none";
+  }
+</script>
+
+<div style="text-align:left; display:flex; flex-direction:column; width:95%; max-width:700px; margin:0 auto; justify-content:center; align-items:center; margin-top:0.5rem;">
+  <textarea id="storyOverviewEl" oninput="localStorage.storyOverview=this.value" placeholder="(Optional) What should the story be about? Write some keywords, or an overview, or starter for the story - you can include characters, plot, desired writing style, world lore, genre, etc." style="display:block; width:100%; min-height:7rem; margin-bottom:0.5rem;"></textarea> 
+  
+  <div style="width:100%; position:relative;">
+    <textarea id="storySoFarEl" oninput="localStorage.storySoFar=this.value" placeholder="The story will appear here when you click the generate button below. You can edit it as needed." style="display:block; width:100%; min-height:400px; padding-bottom:1.5rem; scrollbar-gutter:stable;"></textarea>
+    <div style="min-height:0.5rem; width:100%; bottom:0;">
+      <div id="bottomButtonsCtn" style="display:none; position:relative; bottom:0.5rem; font-size:80%; text-align:center; display:flex; width:min(270px, 95%); justify-content:space-between; margin:0 auto;">
+        
+        <div id="rateLastMessageCtn" style="display:none; position:relative; height:min-content;">
+          <div id="ratingReasonCtn" style="display:none; position:absolute; text-align:center; width:100%; top:0; height:0px;">
+            <div style="position:absolute; bottom:0.25rem; text-align:center; width:max-content;">
+              <input id="ratingReasonEl" list="recentRatingReasonsDataList" placeholder="(Optional) Reason" style="width:150px;">
+              <datalist id="recentRatingReasonsDataList"></datalist>
+            </div>
+          </div>
+          <button id="rateLastMessageBadBtn" disabled onclick="rateLastMessage('bad');" style="filter:hue-rotate(300deg);">👎</button>
+          <button id="rateLastMessageGoodBtn" disabled onclick="rateLastMessage('good');" style="margin-left:0.25rem; filter:hue-rotate(35deg) saturate(0.9);">👍</button>
+        </div>
+        
+        <button id="regenLastBtn" onclick="if(window.storyTextBeforeLastGeneration) { storySoFarEl.value=window.storyTextBeforeLastGeneration; } else { storySoFarEl.value=storySoFarEl.value.trim().split('\n\n').slice(0, -1).join('\n\n'); }; localStorage.storySoFar=storySoFarEl.value; continueStory();" style="">🔁 regen last</button>
+        
+        <div id="deleteLastCtn" style="position:relative; height:min-content; display:inline-block;">
+          <div id="undoDeleteLastParagraphCtn" style="display:none; position:absolute; text-align:center; width:100%; font-size:80%; top:0; height:0px;"><div style="position:absolute; bottom:0.25rem; text-align:center; width:100%;"><button style="width:max-content; margin-bottom:0.25rem; min-height:1.7rem; font-size:120%;" onclick="undoDeleteLastParagraph();">↩️ undo</button></div></div>
+          <button id="deleteLastBtn" onclick="deleteLastParagraph()">🗑️ delete last</button>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+  <script>
+    updateLastParagraphButtonsDisplayIfNeeded();
+  </script>
+  <script>
+    storySoFarEl.addEventListener("input", () => {
+      window.storyTextBeforeLastGeneration = null; // otherwise regen button clears edits that user has made since last generation
+    });
+    storySoFarEl.addEventListener('click', function(e) { // if they're almost scrolled to the bottom, and they click near the bottom, scroll down the last tiny bit
+      let lowerFifth = this.offsetHeight * 8 / 10;
+      let closeToBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 40; // <-- if scrolled this many px from bottom
+      if(e.offsetY > lowerFifth && closeToBottom) {
+        this.scrollTop = this.scrollHeight;
+      }
+    });
+  </script>
+  
+  <div style="width:100%; display:flex; margin-top:0.25rem;">
+    <input id="whatHappensNextEl" onkeydown="if(event.which === 13) generateBtn.click()" oninput="localStorage.whatHappensNext=this.value" placeholder="What should happen next? (optional)" style="display:block; width:100%; font-size:0.8rem;"> 
+    <button onclick="whatHappensNextEl.value=''; localStorage.whatHappensNext='';" title="Delete the current 'what happens next' text." style="margin-left:0.25rem;">🗑️</button>
+    <div id="whatHappensNextSuggestionsOuterWrapper" style="margin-left:0.25rem; position:relative;">
+      <button id="generateWhatHappensNextIdeasBtn" onclick="generateWhatHappensNextIdeas()" title="Generate ideas about what should happen next.">💡</button>
+      <div style="width:0; height:0; top:-0.25rem; left:-0.25rem; position:absolute;">
+        <div id="whatHappensNextSuggestionsCtn" style="display:none; font-size:85%; white-space:pre-wrap; position:absolute; bottom:0; right: 0; left: -19.5rem; min-width:350px; max-width:95%; background:var(--box-color); border:1px solid grey; border-radius:3px; padding:0.25rem;"></div>
+        <script>
+          window.addEventListener("click", function(e) {
+            // bit hacky, bit it'll do
+            if(document.body.contains(e.target) && !whatHappensNextSuggestionsOuterWrapper.contains(e.target)) {
+              whatHappensNextSuggestionsCtn.style.display = "none";
+            }
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+  <div style="width:100%; display:flex; margin-top:0.25rem;">
+    <input id="whatHappensNextEl2" onkeydown="if(event.which === 13) generateBtn.click()" oninput="localStorage.whatHappensNext2=this.value" placeholder="Spice the story up! (optional)" style="display:block; width:100%; font-size:0.8rem;"> 
+    <button onclick="whatHappensNextEl2.value=''; localStorage.whatHappensNext2='';" title="Delete the current 'roast' text." style="margin-left:0.25rem;">🗑️</button>
+    <div id="whatHappensNextSuggestionsOuterWrapper2" style="margin-left:0.25rem; position:relative;">
+      <button id="generateWhatHappensNextIdeasBtn2" onclick="generateWhatHappensNextIdeas2()" title="Roast the story and make it better.">😎</button>
+      <div style="width:0; height:0; top:-0.25rem; left:-0.25rem; position:absolute;">
+        <div id="whatHappensNextSuggestionsCtn2" style="display:none; font-size:85%; white-space:pre-wrap; position:absolute; bottom:0; right:-2.5rem; min-width:350px; max-width:95%; background:var(--box-color); border:1px solid grey; border-radius:3px; padding:0.25rem;"></div>
+        <script>
+          window.addEventListener("click", function(e) {
+            // bit hacky, bit it'll do
+            if(document.body.contains(e.target) && !whatHappensNextSuggestionsOuterWrapper2.contains(e.target)) {
+              whatHappensNextSuggestionsCtn2.style.display = "none";
+            }
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+  <div style="width:100%; display:flex; margin-top:0.25rem;">
+    <input id="whatHappensNextEl3" onkeydown="if(event.which === 13) generateBtn.click()" oninput="localStorage.whatHappensNext3=this.value" placeholder="Brainstorm ideas for the story. (optional)" style="display:block; width:100%; font-size:0.8rem;"> 
+    <button onclick="whatHappensNextEl3.value=''; localStorage.whatHappensNext3='';" title="Delete the current 'brainstorm' text." style="margin-left:0.25rem;">🗑️</button>
+    <div id="whatHappensNextSuggestionsOuterWrapper3" style="margin-left:0.25rem; position:relative;">
+      <button id="generateWhatHappensNextIdeasBtn3" onclick="generateWhatHappensNextIdeas3()" title="Brainstorm.">🧠</button>
+      <div style="width:0; height:0; top:-0.25rem; left:-0.25rem; position:absolute;">
+        <div id="whatHappensNextSuggestionsCtn3" style="display:none; font-size:85%; white-space:pre-wrap; position:absolute; bottom:0; right:-2.5rem; min-width:350px; max-width:95%; background:var(--box-color); border:1px solid grey; border-radius:3px; padding:0.25rem;"></div>
+        <script>
+          window.addEventListener("click", function(e) {
+            // bit hacky, bit it'll do
+            if(document.body.contains(e.target) && !whatHappensNextSuggestionsOuterWrapper3.contains(e.target)) {
+              whatHappensNextSuggestionsCtn3.style.display = "none";
+            }
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+  
+  <div style="width:100%; display:none; margin-top:0.25rem;">
+    <input id="whatHappensNextEl4" onkeydown="if(event.which === 13) generateBtn.click()" oninput="localStorage.whatHappensNext4=this.value" placeholder="Describe unique speaking styles for characters. (optional)" style="display:block; width:100%; font-size:0.8rem;"> 
+    <button onclick="whatHappensNextEl4.value=''; localStorage.whatHappensNext4='';" title="Delete the current 'speaking styles' text." style="margin-left:0.25rem;">🗑️</button>
+    <div id="whatHappensNextSuggestionsOuterWrapper4" style="margin-left:0.25rem; position:relative;">
+      <button id="generateWhatHappensNextIdeasBtn4" onclick="generateWhatHappensNextIdeas4()" title="Give ideas for unique speaking styles for characters.">🎤</button>
+      <div style="width:0; height:0; top:-0.25rem; left:-0.25rem; position:absolute;">
+        <div id="whatHappensNextSuggestionsCtn4" style="display:none; font-size:85%; white-space:pre-wrap; position:absolute; bottom:0; right:-2.5rem; min-width:350px; max-width:95%; background:var(--box-color); border:1px solid grey; border-radius:3px; padding:0.25rem;"></div>
+        <script>
+          window.addEventListener("click", function(e) {
+            // bit hacky, bit it'll do
+            if(document.body.contains(e.target) && !whatHappensNextSuggestionsOuterWrapper4.contains(e.target)) {
+              whatHappensNextSuggestionsCtn4.style.display = "none";
+            }
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+   <div style="width:100%; display:none; margin-top:0.25rem;">
+    <input id="whatHappensNextEl5" onkeydown="if(event.which === 13) generateBtn.click()" oninput="localStorage.whatHappensNext5=this.value" placeholder="Describe an aspect of your story to be critiqued by the AI. (optional)" style="display:block; width:100%; font-size:0.8rem;"> 
+    <button onclick="whatHappensNextEl5.value=''; localStorage.whatHappensNext5='';" title="Delete the current 'brainstorm' text." style="margin-left:0.25rem;">🗑️</button>
+    <div id="whatHappensNextSuggestionsOuterWrapper5" style="margin-left:0.25rem; position:relative;">
+      <button id="generateWhatHappensNextIdeasBtn5" onclick="generateWhatHappensNextIdeas5()" title="Critique.">📃</button>
+      <div style="width:0; height:0; top:-0.25rem; left:-0.25rem; position:absolute;">
+        <div id="whatHappensNextSuggestionsCtn5" style="display:none; font-size:85%; white-space:pre-wrap; position:absolute; bottom:0; right:-2.5rem; min-width:350px; max-width:95%; background:var(--box-color); border:1px solid grey; border-radius:3px; padding:0.25rem;"></div>
+        <script>
+          window.addEventListener("click", function(e) {
+            // bit hacky, bit it'll do
+            if(document.body.contains(e.target) && !whatHappensNextSuggestionsOuterWrapper5.contains(e.target)) {
+              whatHappensNextSuggestionsCtn5.style.display = "none";
+            }
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+  
+ 
+  
+  
+  
+  <div style="margin-top:0.5rem; display:flex; align-items:center;">
+    <button id="generateBtn" onclick="continueStory()" style="font-size:150%;">▶️ generate</button>
+    <div style="display:inline-flex; align-items:center; min-height:100%; width:0; position:relative;">
+      <button id="stopBtn" onclick="window.userClickedStop = true; window.lastGenerationStreamObj.stop(); this.style.display='none'; " style="display:none; margin-left:0.5rem; min-width:max-content; font-size:80%;">🛑 stop</button>
+    </div>
+  </div>
+  <div style="display:flex; border:1px solid grey; padding:0.25rem; border-radius:3px; margin-top:0.5rem;"><input id="oneParagraphAtATimeCheckbox" type="checkbox" checked style="cursor:pointer;" oninput="localStorage.oneParagraphAtATime = this.checked ? '1' : '';"><span style="margin-left:0.25rem; font-size:80%; cursor:pointer; user-select:none;" onclick="oneParagraphAtATimeCheckbox.click();">one paragraph at a time</span></div>
+</div>
+
+
+<script>
+  // NOTE: You could simply use `perchance.org/remember-plugin` like `[remember(root, "@inputs")]` rather than this big mess.
+  
+  // Notice that we have oninput="localStorage.blah=this.value" on the above input boxes, and in `onFinish` in the Perchance code.
+  // That saves their value to localStorage whenever they are changed.
+  // So during the initial page load, we load those values from localStorage if they exist:
+  if(localStorage.storyOverview) storyOverviewEl.value = localStorage.storyOverview;
+  if(localStorage.storySoFar) storySoFarEl.value = localStorage.storySoFar;
+  if(localStorage.whatHappensNext) whatHappensNextEl.value = localStorage.whatHappensNext;
+  if(localStorage.oneParagraphAtATime) oneParagraphAtATimeCheckbox.checked = localStorage.oneParagraphAtATime;
+  
+  storySoFarEl.scrollTop = storySoFarEl.scrollHeight; // scroll to the bottom of the current story
+  updateButtonsDisplay()
+</script>
+
+
+<script>
+  function trackCaretPosition(textArea, callback, opts={}) {
+    function createCopy(textArea) {
+      let copy = document.createElement('div');
+      let style = getComputedStyle(textArea);
+
+      let propertiesToCopy = ['overflow-x', 'overflow-y', 'display', 'font-family', 'font-size', 'font-weight', 'word-wrap', 'white-space', 'padding-left', 'padding-right', 'padding-top', 'padding-bottom', 'border-left-width', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-style', 'text-align', 'box-sizing', 'scrollbar-gutter'];
+      propertiesToCopy.forEach(key => copy.style[key] = style[key]);
+
+      Object.assign(copy.style, {
+        position: 'absolute',
+        left: `${textArea.offsetLeft}px`,
+        top: `${textArea.offsetTop}px`,
+      });
+
+      document.body.appendChild(copy);
+      return copy;
+    }
+    
+    textArea.style.overflow = "auto"; // even though this is what textareas 'do', they don't have this value by default (tho perchance normalize css does add it, so this is just for robustness)
+    let copy = createCopy(textArea);
+    copy.style.visibility = 'hidden';
+    // copy.style.pointerEvents = 'none';
+    // copy.style.color = 'red';
+    // copy.style.opacity = '0.3';
+
+    function updateShadowPositionAndSize() {
+      let rect = textArea.getBoundingClientRect();
+      let scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      copy.style.left = `${rect.left + scrollLeft}px`;
+      copy.style.top = `${rect.top + scrollTop}px`;
+      copy.style.width = `${textArea.offsetWidth}px`;
+      copy.style.height = `${textArea.offsetHeight}px`;
+      copy.scrollTop = textArea.scrollTop;
+    }
+
+    function update() {
+      if(!document.activeElement === textArea) {
+        return;
+      }
+      
+      if(opts.onlyComputePositionWhenAtEndOfText) { // this option is for performance optimization
+        let thereIsOnlyWhiteSpaceAfterCaret = /^\s*$/.test(textArea.value.slice(textArea.selectionEnd));
+        if(!thereIsOnlyWhiteSpaceAfterCaret) {
+          callback(null);
+          return;
+        }
+      }
+      let startTime;
+      if(window.performance?.now) startTime = performance.now();
+      
+      updateShadowPositionAndSize();
+      const position = getCaretPosition(textArea, copy);
+      callback(position);
+      
+      if(startTime) {
+        let timeTaken = performance.now()-startTime;
+        if(timeTaken > 50) {
+          console.warn(`Took ${timeTaken}ms to track caret position for 'continue' button.`)
+        }
+      }
+    }
+
+    let debounceTimeoutLength = 100;
+    if(textArea.value.length > 100000) debounceTimeoutLength = 400;
+    setInterval(() => {
+      if(textArea.value.length > 100000) debounceTimeoutLength = 400;
+    }, 10000);
+    let updateDebounceTimeout = null;
+    textArea.addEventListener('input', function() {
+      clearTimeout(updateDebounceTimeout);
+      updateDebounceTimeout = setTimeout(() => update(), debounceTimeoutLength);
+    });
+    textArea.addEventListener('click', function() {
+      clearTimeout(updateDebounceTimeout);
+      updateDebounceTimeout = setTimeout(() => update(), debounceTimeoutLength);
+    });
+    window.addEventListener('mouseup', function() {
+      clearTimeout(updateDebounceTimeout);
+      updateDebounceTimeout = setTimeout(() => update(), debounceTimeoutLength);
+    });
+    textArea.addEventListener('scroll', function() {
+      clearTimeout(updateDebounceTimeout);
+      updateDebounceTimeout = setTimeout(() => update(), debounceTimeoutLength);
+    });
+    window.addEventListener('resize', function() {
+      clearTimeout(updateDebounceTimeout);
+      updateDebounceTimeout = setTimeout(() => { updateShadowPositionAndSize(); update(); }, 10);
+    });
+    textArea.addEventListener('keydown', function(e) {
+      if(["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        clearTimeout(updateDebounceTimeout);
+        updateDebounceTimeout = setTimeout(() => update(), debounceTimeoutLength);
+      }
+    });
+
+    let resizeObserver = new ResizeObserver(() => updateShadowPositionAndSize());
+    resizeObserver.observe(textArea);
+
+    let mutationObserver = new MutationObserver(mutations => {
+      for(const mutation of mutations) {
+        if(Array.from(mutation.removedNodes).includes(textArea)) {
+          copy.remove();
+          mutationObserver.disconnect();
+          resizeObserver.disconnect();
+        }
+      }
+    });
+    mutationObserver.observe(textArea.parentNode, { childList: true });
+
+    function getCaretPosition(textArea, copy) {
+      let { selectionStart, selectionEnd } = textArea;
+      let value = textArea.value;
+      let phantomNewline = false;
+
+      if(selectionStart === selectionEnd && value[selectionStart - 1] === '\n') {
+        phantomNewline = true;
+      }
+
+      copy.textContent = phantomNewline ? value.substring(0, selectionStart) + ' ' + value.substring(selectionStart) : value;
+
+      if(!copy.firstChild) {
+        let style = getComputedStyle(textArea);
+        return {
+          x: textArea.offsetLeft + parseFloat(style.paddingLeft),
+          y: textArea.offsetTop + parseFloat(style.paddingTop),
+        };
+      }
+
+      let range = document.createRange();
+      range.setStart(copy.firstChild, phantomNewline ? selectionStart + 1 : selectionStart);
+      range.setEnd(copy.firstChild, phantomNewline ? selectionStart + 1 : Math.min(selectionEnd, selectionStart + 1));
+      // range.setEnd(copy.firstChild, phantomNewline ? selectionEnd + 1 : selectionEnd);
+
+      const rect = range.getBoundingClientRect();
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+      return {
+        x: rect.left + scrollLeft, // - textArea.scrollLeft,
+        y: rect.top + scrollTop, // - textArea.scrollTop,
+      };
+    }
+
+  }
+  
+  window.continueTextButtonClickHandler = function() { // NOTE: this handler is also used for Tab key press event when the continue button is visible.
+    if(storySoFarEl.selectionStart !== storySoFarEl.selectionEnd && storySoFarEl.value.slice(storySoFarEl.selectionEnd).trim() === "") { // they highlighted some text at the end of the chat logs and then clicked the continue button that appears above it
+      storySoFarEl.value = storySoFarEl.value.slice(0, storySoFarEl.selectionStart);
+    }
+    continueStory({continueInline:true});
+  };
+  if(typeof continueTextBtn === "undefined") { // <-- just so, while generator is being edited, multiple buttons aren't created
+    let tmp = document.createElement("div");
+    tmp.innerHTML = `<button id="continueTextBtn" style="position:absolute; cursor:pointer; font-size:65%; display:none;">▶️<span id="continueTextBtnTabLabel" style="display:none;"> (tab)</span></button>`;
+    let btn = tmp.firstElementChild;
+    btn.onmousedown = window.continueTextButtonClickHandler;
+    document.body.append(btn); // must be in the body, so it's position is relative to the body, and not e.g. the chatLogs container element
+  }
+  
+  storySoFarEl.addEventListener('keydown', function(e) {
+    if(e.key === 'Tab') {
+      e.preventDefault();
+      if(continueTextBtn.offsetHeight !== 0) {
+        localStorage.haveUsedTabToContinueText = "1";
+        continueTextBtnTabLabel.style.display = "none";
+        window.continueTextButtonClickHandler(); // if it's visible, and they press tab, then click it for them
+      }
+    } else {
+      continueTextBtn.style.display = 'none';
+    }
+
+  });
+  trackCaretPosition(storySoFarEl, pos => {
+    if(!pos) { // since we passed onlyComputePositionWhenAtEndOfText:true, we get updates when cursor moves, but only get position if at end of text (for performance reasons)
+      continueTextBtn.style.display = 'none';
+      return;
+    }
+    
+    if(!window.stortSoFarElLineHeightPixels) {
+      window.stortSoFarElLineHeightPixels = getLineHeightInPixels(storySoFarEl);
+    }
+    
+    // console.log(pos.x, pos.y);
+    // let textAfterSelectionStart = storySoFarEl.value.slice(storySoFarEl.selectionStart);
+    let textAfterSelectionEnd = storySoFarEl.value.slice(storySoFarEl.selectionEnd);
+    let thereIsOnlyWhiteSpaceAfterCaret = /^\s*$/.test(textAfterSelectionEnd);
+    // let selectionStartIsWithinLastFewMessages = textAfterSelectionStart.length < 3000;
+    // let thereIsNoTextAfterSelectionEnd = textAfterSelectionEnd.trim().length === 0;
+    if(document.activeElement === storySoFarEl && thereIsOnlyWhiteSpaceAfterCaret && pageXYIsInsideElement(pos.x, pos.y, storySoFarEl)) {
+      continueTextBtn.style.display = 'block';
+      let buttonHeight = continueTextBtn.offsetHeight;
+      if(storySoFarEl.selectionStart == storySoFarEl.selectionEnd) {
+        continueTextBtn.style.left = `${pos.x + 15}px`;
+        continueTextBtn.style.top = `${pos.y - 0.5*(buttonHeight-window.stortSoFarElLineHeightPixels)}px`;
+      } else {
+        continueTextBtn.style.left = `${pos.x}px`;
+        continueTextBtn.style.top = `${pos.y - buttonHeight*1.3 - 0.5*(buttonHeight-window.stortSoFarElLineHeightPixels)}px`;
+      }
+    }
+  }, {onlyComputePositionWhenAtEndOfText:true});
+  storySoFarEl.addEventListener('blur', () => {
+    continueTextBtn.style.display = 'none';
+  });
+  document.addEventListener('mousedown', (event) => {
+    continueTextBtn.style.display = 'none'; // otherwise it gets in the way while you're trying to highlight stuff
+  });
+  document.addEventListener('click', (event) => {
+    if(event.target !== storySoFarEl) {
+      continueTextBtn.style.display = 'none'; // not sure why this is required in Chrome Android (blur event handler should be enough)
+    }
+  });
+
+  function getLineHeightInPixels(element) {
+    const style = window.getComputedStyle(element);
+    let lineHeight = style.lineHeight;
+    if(lineHeight === 'normal') { // Normal line heights are usually 1.2 times the font size
+      const fontSize = parseFloat(style.fontSize);
+      lineHeight = fontSize * 1.2;
+    } else {
+      lineHeight = parseFloat(lineHeight);
+    }
+    return lineHeight;
+  }
+  function pageXYIsInsideElement(x, y, element) {
+    const { left, top, right, bottom } = element.getBoundingClientRect();
+    return x >= left + window.pageXOffset && x <= right + window.pageXOffset && y >= top + window.pageYOffset && y <= bottom + window.pageYOffset;
+  }
+</script>
+
+
+<ul style="font-size:80%; max-width:640px; margin:1rem auto; margin-top:2rem;">
+  <li style="">If you'd like to go back to the original version of this story generator, go to <a href="https://perchance.org/burgs-take-ai-story-generator">Burg's Take on the AI Story Generator</a>.</li>
+  <li style="margin-top:0.5rem;">The <a href="https://perchance.org/ai-character-description" target="_blank">AI Character Description</a> generator may come in handy.</li>
+  <li style="margin-top:0.5rem;">The <a href="https://perchance.org/ai-story-outline" target="_blank">AI Story Outline Generator</a> and <a href="https://perchance.org/ai-plot-generator" target="_blank">AI Plot Generator</a> may come in handy if you're out of ideas.</li>
+  <li style="margin-top:0.5rem;">And the <a href="https://perchance.org/ai-text-to-image-generator" target="_blank">AI Image Generator</a> to create images for characters/scenes/etc.</li>
+  <li style="margin-top:0.5rem;">Maybe also try the <a href="https://perchance.org/ai-generated-hierarchical-world" target="_blank">Hierarchical World Generator</a> if you need to brainstorm world building ideas.</li>
+  <li style="margin-top:0.5rem;">Prefer a chat/RP-style interface? Try the simple <a href="https://perchance.org/ai-chat" target="_blank">AI Chat</a> page, or the more advanced <a href="https://perchance.org/ai-character-chat" target="_blank">AI Character Chat</a> which can generate images within the chat.</li>
+  <li style="margin-top:0.5rem;">If a generated paragraph is particularly bad or particularly good, please rate it with the thumbs up/down buttons to help improve the AI.</li>
+  <li style="margin-top:0.5rem;">This page uses your browser's 'localStorage' to <b>remember your story even after you refresh the page</b>. To remove the data, just select all the text in the text boxes and delete it. Your stories are <b style="color:#e98721;">not</b> stored on a server. They're stored privately in your browser/device storage only.</li>
+  <li style="margin-top:0.5rem;">If you scroll up in the story once it has become long, you'll see that some special summary paragraphs have been inserted. Feel free to edit the content of these summaries, but don't move or delete them. <b>They help extend the AI's memory</b>. If you want to easily get the full story text without the summary paragraphs, you can click this button: <button id="copyStoryTextWithoutSummariesBtn" onclick="copyStoryTextToClipboardWithoutSummaries()">📋 copy story without summaries</button></li>
+  <li style="margin-top:0.5rem;">This generator is powered by the <a href="https://perchance.org/ai-text-plugin" target="_blank">ai-text-plugin</a>.</li>
+</ul>
+
+<!-- COMMENTS STUFF -->
+<div id="commentsCtn">
+  <p><button onclick="if(commentsEl.style.display == 'none') { if(!commentsEl.innerHTML.trim()){initTabbedComments();}; commentsEl.style.display=''; this.textContent='hide comments'; } else { commentsEl.style.display='none'; this.textContent='💬 show comments'; }">💬 show comments</button></p>
+  <p id="commentsEl" style="display:none;"></p>
+</div>
+<script>
+  function initTabbedComments() {
+    commentsEl.innerHTML = "";
+    commentsEl.append(tabbedCommentsPlugin({channels:commentChannels, defaultChannelOptions:defaultCommentOptions}));
+  }
+</script>
+<br><br><br>
+
+
+<!-- DARK MODE STUFF -->
+<div style="position:fixed; bottom:0.5rem; left:0.5rem; z-index:10;">
+  <button id="darkModeBtn" style="cursor:pointer;" onclick="window.toggleManualDarkMode(); createCommentsSectionHtml();">🌃</button>
+  <div style="display:inline-block;">[fullscreenButton("&nbsp;&nbsp;&nbsp;⇱&nbsp;&nbsp;&nbsp;", "&nbsp;&nbsp;&nbsp;⇲&nbsp;&nbsp;&nbsp;")]</div>
+</div>
+<script>
+  function toggleManualDarkMode() {
+    let newColorScheme = (getCurrentColorScheme() === "dark" ? "light" : "dark");
+    localStorage.forceColorScheme = newColorScheme;
+    setColorScheme(newColorScheme);
+    // if chosen mode matches current OS default, we remove manual "forced" mode:
+    let systemColorScheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? "dark" : "light";
+    if(systemColorScheme === newColorScheme) {
+      localStorage.removeItem("forceColorScheme");
+    }
+  }
+  function getCurrentColorScheme() {
+    if(localStorage.forceColorScheme !== undefined) {
+      return localStorage.forceColorScheme;
+    } else {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? "dark" : "light";
+    }
+  }
+  function setColorScheme(scheme) {
+    if(scheme !== "dark" && scheme !== "light") throw new Error("scheme should be 'light' or 'dark'");
+    document.querySelector("#darkModeBtn").textContent = (scheme === "dark" ? "🌄" : "🌃");
+    if(scheme === "dark") {
+      document.documentElement.style.colorScheme = "dark";
+      document.body.style.color = "#d8d4cf";
+      document.body.style.backgroundColor = "#131516";
+      document.documentElement.style.setProperty('--box-color', '#2a2a2a');
+    } else {
+      document.documentElement.style.colorScheme = "light";
+      document.body.style.color = "black";
+      document.body.style.backgroundColor = "white";
+      document.documentElement.style.setProperty('--box-color', '#ebebeb');
+    }
+  }
+  // during page load, set the chosen mode based on localStorage value if it exists:
+  if(localStorage.forceColorScheme !== undefined) {
+    setColorScheme(localStorage.forceColorScheme);
+  } else {
+    // user has not manually overwritten, so we use OS default:
+    let systemIsInDarkMode = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setColorScheme(systemIsInDarkMode ? "dark" : "light");
+  }
+</script>
+ 
+<!-- FEEDBACK STUFF -->
+<div style="position:fixed; bottom:0.5rem; right:0.5rem; text-align:right; z-index:100;">
+  <div id="feedbackCommentsCtn"></div>
+  <button id="feedbackBtn893745ykfuhd" onclick="if(feedbackCommentsCtn.innerHTML.length === 0) { feedbackCommentsCtn.innerHTML=generateFeedbackCommentsHtml(); this.innerHTML='✖ close'; } else {  feedbackCommentsCtn.innerHTML='';  this.innerHTML='🗨️ feedback'; }">🗨️ feedback</button>
+</div>
+<script>
+  function generateFeedbackCommentsHtml() {
+    let options = {channel:"feedback", hideComments:location.hash.includes("#showfeedback") || localStorage.showFeedback ? false : true, height:location.hash.includes("#showfeedback") || localStorage.showFeedback ? 500 : 220, commentPlaceholderText: "Share some feedback about how I can improve this page. Do not share personal info, feedback data is public.\n\nNote: This is feedback for the web developer, 𝗻𝗼𝘁 the AI. Use the thumbs up/down to give the AI some feedback.", submitButtonText: "submit feedback", hideSettingsButton:true, hideFullscreenButton:true};
+    if(localStorage.forceColorScheme) options.forceColorScheme = localStorage.forceColorScheme;
+    return commentsPlugin(options);
+  }
+</script>
+
+<style>
+  button:disabled {
+    filter: grayscale(1); /* since firefox doesn't seem to change emoji colors to indicate disabledness - only affects text */
+  }
+</style>
+<style>
+  #storyOverviewEl, #storySoFarEl, #whatHappensNextEl {
+    background-color: var(--box-color);
+    border: 1px solid #ccc;
+    color: inherit;
+    padding: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  #storyOverviewEl:focus, #storySoFarEl:focus, #whatHappensNextEl:focus {
+    outline: none;
+    border-color: #66afe9;
+  }
+</style>
